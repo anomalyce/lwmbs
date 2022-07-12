@@ -10,14 +10,11 @@ on:
       extensions:
         description: "extensions"
         required: false
-        default: "opcache,bcmath,pdo,phar,mysqlnd,mysqli,pdo,pdo_mysql,mbstring,mbregex,session,ctype,fileinfo,filter,tokenizer,curl,ffi,swow,redis,parallel,sockets,openssl,zip,zlib,bz2,yaml,zstd"
+        default: "opcache,bcmath,pdo,phar,mysqlnd,mysqli,pdo,pdo_mysql,mbstring,mbregex,session,ctype,fileinfo,filter,tokenizer,curl,ffi,swow,redis,parallel,sockets,openssl,zip,zlib,bz2,yaml,zstd,dom"
       lib_only:
         description: "build libraries only"
         required: false
         default: ""
-  push:
-  schedule:
-    - cron: "33 4 * * *"
 
 env:
   LWMBS_LIBRARIES: zstd,libssh2,curl,zlib,brotli,libffi,openssl,libzip,bzip2,nghttp2,onig,libyaml,xz
@@ -72,9 +69,8 @@ jobs:
             "${{ (github.event.inputs && github.event.inputs.extensions) || env.LWMBS_EXTENSIONS }}" \
             --phpVer=${{ matrix.php-version }} \
             --shallowClone
-          mkdir -p ${GITHUB_WORKSPACE}/micro ${GITHUB_WORKSPACE}/cli
+          mkdir -p ${GITHUB_WORKSPACE}/micro
           php ${GITHUB_WORKSPACE}/dump_licenses.php ${GITHUB_WORKSPACE}/micro/licenses
-          php ${GITHUB_WORKSPACE}/dump_licenses.php ${GITHUB_WORKSPACE}/cli/licenses
 
       - name: Prepare libraries
         if: steps.cache.outputs.cache-hit != 'true'
@@ -109,32 +105,8 @@ jobs:
           path: |
             micro
 
-      - name: Build cli
-        if: "! (github.event.inputs && github.event.inputs.lib_only)"
-        id: cli
-        working-directory: build
-        continue-on-error: true
-        run: |
-          set -xeo pipefail
-          export PATH="/usr/local/opt/bison/bin:/usr/local/opt/re2c/bin:$PATH"
-          php ${GITHUB_WORKSPACE}/build_cli.php \
-            "${{ (github.event.inputs && github.event.inputs.libraries) || env.LWMBS_LIBRARIES }}" \
-            "${{ (github.event.inputs && github.event.inputs.extensions) || env.LWMBS_EXTENSIONS }}" \
-            --arch=${{ matrix.arch }}
-          mkdir -p ${GITHUB_WORKSPACE}/cli
-          cp src/php-src/sapi/cli/php src/php-src/sapi/cli/php.dwarf ${GITHUB_WORKSPACE}/cli/
-
-      - name: Upload artifact for cli
-        if: steps.cli.outcome == 'success'
-        uses: actions/upload-artifact@v3
-        with:
-          name: cli_${{ matrix.php-version }}_${{ matrix.arch }}_${{ steps.src_hash.outputs.hash }}
-          path: |
-            cli
-
       - name: Fail if anything failed
         if: |
-          steps.cli.outcome == 'failure' ||
           steps.micro.outcome == 'failure'
         run: |
           false
